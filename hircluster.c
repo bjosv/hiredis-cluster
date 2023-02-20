@@ -1189,6 +1189,89 @@ error:
     return NULL;
 }
 
+/* Update known cluster nodes with a new collection of redisClusterNodes.
+ * Will also update the slot-to-node lookup table for the new nodes. */
+static int updateNodesAndSlotmap(redisClusterContext *cc, dict *nodes) {
+    if (nodes == NULL) {
+        return REDIS_ERR;
+    }
+
+    /* Create a slot to redisClusterNode lookup table */
+    redisClusterNode **table;
+    table = hi_calloc(REDIS_CLUSTER_SLOTS, sizeof(redisClusterNode *));
+    if (table == NULL) {
+        goto oom;
+    }
+
+    dictIterator di;
+    dictInitIterator(&di, nodes);
+
+    dictEntry *de;
+    while ((de = dictNext(&di))) {
+        redisClusterNode *master = dictGetEntryVal(de);
+        if (master->role != REDIS_ROLE_MASTER) {
+            __redisClusterSetError(cc, REDIS_ERR_OTHER,
+                                   "Node role must be master");
+            goto error;
+        }
+
+        if (master->slots == NULL) {
+            continue;
+        }
+
+        listIter li;
+        listRewind(master->slots, &li);
+
+        listNode *ln;
+        while ((ln = listNext(&li))) {
+            cluster_slot *slot = listNodeValue(ln);
+            if (slot->start > slot->end || slot->end >= REDIS_CLUSTER_SLOTS) {
+                __redisClusterSetError(cc, REDIS_ERR_OTHER,
+                                       "Slot region for node is invalid");
+                goto error;
+            }
+            for (uint32_t i = slot->start; i <= slot->end; i++) {
+                if (table[i] != NULL) {
+                    __redisClusterSetError(cc, REDIS_ERR_OTHER,
+                                           "Different node holds same slot");
+                    goto error;
+                }
+                table[i] = master;
+            }
+        }
+    }
+
+    /* Update slot-to-node table before changing cc->nodes since
+     * removal of nodes might trigger user callbacks which may
+     * send commands, which depend on the slot-to-node table. */
+    if (cc->table != NULL) {
+        hi_free(cc->table);
+    }
+    cc->table = table;
+
+    cc->route_version++;
+
+    // Move all hiredis contexts in cc->nodes to nodes
+    cluster_nodes_swap_ctx(cc->nodes, nodes);
+
+    /* Replace cc->nodes before releasing the old dict since
+     * the release procedure might access cc->nodes. */
+    dict *oldnodes = cc->nodes;
+    cc->nodes = nodes;
+    if (oldnodes != NULL) {
+        dictRelease(oldnodes);
+    }
+    return REDIS_OK;
+
+oom:
+    __redisClusterSetError(cc, REDIS_ERR_OOM, "Out of memory");
+    // passthrough
+error:
+    hi_free(table);
+    dictRelease(nodes);
+    return REDIS_ERR;
+}
+
 /**
  * Update route with the "cluster nodes" or "cluster slots" command reply.
  */
@@ -1197,7 +1280,6 @@ static int cluster_update_route_by_addr(redisClusterContext *cc, const char *ip,
     redisContext *c = NULL;
     redisReply *reply = NULL;
     dict *nodes = NULL;
-    redisClusterNode **table = NULL;
 
     if (cc == NULL) {
         return REDIS_ERR;
@@ -1215,7 +1297,8 @@ static int cluster_update_route_by_addr(redisClusterContext *cc, const char *ip,
 
     c = redisConnectWithOptions(&options);
     if (c == NULL) {
-        goto oom;
+        __redisClusterSetError(cc, REDIS_ERR_OOM, "Out of memory");
+        return REDIS_ERR;
     }
     if (c->err) {
         __redisClusterSetError(cc, c->err, c->errstr);
@@ -1285,95 +1368,15 @@ static int cluster_update_route_by_addr(redisClusterContext *cc, const char *ip,
         nodes = parse_cluster_nodes(cc, reply->str, reply->len, cc->flags);
     }
 
-    if (nodes == NULL) {
+    if (updateNodesAndSlotmap(cc, nodes) != REDIS_OK) {
         goto error;
     }
 
-    /* Create a slot to cluster_node lookup table */
-    table = hi_calloc(REDIS_CLUSTER_SLOTS, sizeof(redisClusterNode *));
-    if (table == NULL) {
-        goto oom;
-    }
-
-    dictIterator di;
-    dictInitIterator(&di, nodes);
-
-    dictEntry *de;
-    while ((de = dictNext(&di))) {
-        redisClusterNode *master = dictGetEntryVal(de);
-        if (master->role != REDIS_ROLE_MASTER) {
-            __redisClusterSetError(cc, REDIS_ERR_OTHER,
-                                   "Node role must be master");
-            goto error;
-        }
-
-        if (master->slots == NULL) {
-            continue;
-        }
-
-        listIter li;
-        listRewind(master->slots, &li);
-
-        listNode *ln;
-        while ((ln = listNext(&li))) {
-            cluster_slot *slot = listNodeValue(ln);
-            if (slot->start > slot->end || slot->end >= REDIS_CLUSTER_SLOTS) {
-                __redisClusterSetError(cc, REDIS_ERR_OTHER,
-                                       "Slot region for node is error");
-                goto error;
-            }
-            for (uint32_t i = slot->start; i <= slot->end; i++) {
-                if (table[i] != NULL) {
-                    __redisClusterSetError(cc, REDIS_ERR_OTHER,
-                                           "Different node holds same slot");
-                    goto error;
-                }
-                table[i] = master;
-            }
-        }
-    }
-
-    /* Update slot-to-node table before changing cc->nodes since
-     * removal of nodes might trigger user callbacks which may
-     * send commands, which depend on the slot-to-node table. */
-    if (cc->table != NULL) {
-        hi_free(cc->table);
-    }
-    cc->table = table;
-
-    cc->route_version++;
-
-    // Move all hiredis contexts in cc->nodes to nodes
-    cluster_nodes_swap_ctx(cc->nodes, nodes);
-
-    /* Replace cc->nodes before releasing the old dict since
-     * the release procedure might access cc->nodes. */
-    dict *oldnodes = cc->nodes;
-    cc->nodes = nodes;
-    if (oldnodes != NULL) {
-        dictRelease(oldnodes);
-    }
-
     freeReplyObject(reply);
-
     redisFree(c);
-
     return REDIS_OK;
 
-oom:
-    __redisClusterSetError(cc, REDIS_ERR_OOM, "Out of memory");
-    // passthrough
-
 error:
-    if (table != NULL) {
-        hi_free(table);
-    }
-    if (nodes != NULL) {
-        if (nodes == cc->nodes) {
-            cc->nodes = NULL;
-        }
-        dictRelease(nodes);
-    }
     freeReplyObject(reply);
     redisFree(c);
     return REDIS_ERR;
