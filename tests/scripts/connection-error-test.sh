@@ -23,15 +23,6 @@ EXPECT CONNECT
 EXPECT ["SET", "bar", "initial"]
 SEND +OK
 
-# Max retry triggers a fetch of config
-EXPECT CONNECT
-EXPECT ["PING"]
-SEND +PONG
-EXPECT ["config", "get", "cluster-node-timeout"]
-SEND ["cluster-node-timeout", "0"]
-# Close this connection since it's unused from now on
-CLOSE
-
 # Topology changed, nodeid2 is now gone
 EXPECT CONNECT
 EXPECT ["CLUSTER", "SLOTS"]

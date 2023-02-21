@@ -93,8 +93,8 @@ expected1="OK
 OK
 error: Server closed the connection
 error: Connection refused
-error: no reachable node in cluster
-error: no reachable node in cluster
+error: Connection refused
+error: Connection refused
 error: Connection refused
 error: Connection refused"
 
@@ -103,8 +103,8 @@ expected2="OK
 OK
 error: Server closed the connection
 error: Connection refused
-error: no reachable node in cluster
-error: no reachable node in cluster
+error: Connection refused
+error: Connection refused
 error: Connection refused
 error: Connection refused"
 
