@@ -37,6 +37,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include "adlist.h"
 #include "command.h"
@@ -75,6 +76,7 @@
 #define CRLF_LEN (sizeof("\x0d\x0a") - 1)
 
 #define SLOTMAP_UPDATE_THROTTLE_USEC 1000000
+#define SLOTMAP_UPDATE_ONGOING INT64_MAX
 
 typedef struct cluster_async_data {
     redisClusterAsyncContext *acc;
@@ -1433,6 +1435,9 @@ redisClusterContext *redisClusterContextInit(void) {
     cc = hi_calloc(1, sizeof(redisClusterContext));
     if (cc == NULL)
         return NULL;
+
+    /* Initialize generator for random node selections */
+    srand(time(NULL));
 
     cc->max_retry_count = CLUSTER_DEFAULT_MAX_RETRY_COUNT;
     return cc;
@@ -3696,6 +3701,132 @@ error:
     cluster_async_data_free(cad);
 }
 
+/* Reply callback function for CLUSTER SLOTS */
+void clusterSlotsReplyCallback(redisAsyncContext *ac, void *r, void *privdata) {
+    UNUSED(ac);
+    redisClusterAsyncContext *acc = (redisClusterAsyncContext *)privdata;
+    redisClusterContext *cc = acc->cc;
+    acc->update_route_time = hi_usec_now() + SLOTMAP_UPDATE_THROTTLE_USEC;
+
+    if (r == NULL) {
+        /* Ignore failures, next random node is hopefully working */
+        return;
+    }
+    redisReply *reply = (redisReply *)r;
+    dict *nodes = parse_cluster_slots(cc, reply, cc->flags);
+    if (updateNodesAndSlotmap(cc, nodes) != REDIS_OK) {
+        /* Ignore failures for now */
+    }
+}
+
+/* Reply callback function for CLUSTER NODES */
+void clusterNodesReplyCallback(redisAsyncContext *ac, void *r, void *privdata) {
+    UNUSED(ac);
+    redisClusterAsyncContext *acc = (redisClusterAsyncContext *)privdata;
+    redisClusterContext *cc = acc->cc;
+    acc->update_route_time = hi_usec_now() + SLOTMAP_UPDATE_THROTTLE_USEC;
+
+    if (r == NULL) {
+        /* Ignore failures, next random node is hopefully working */
+        return;
+    }
+    redisReply *reply = (redisReply *)r;
+    dict *nodes = parse_cluster_nodes(cc, reply->str, reply->len, cc->flags);
+    if (updateNodesAndSlotmap(cc, nodes) != REDIS_OK) {
+        /* Ignore failures for now */
+    }
+}
+
+/* Return a random active node with async connection. */
+static redisClusterNode *getRandomActiveNode(dict *nodes) {
+    redisClusterNode *node;
+    dictIterator di;
+    dictInitIterator(&di, nodes);
+
+    /* Count nodes which we have a connection to */
+    int activeNodes = 0;
+    dictEntry *de;
+    while ((de = dictNext(&di)) != NULL) {
+        node = dictGetEntryVal(de);
+        if (node->acon != NULL && node->acon->err == 0 &&
+            node->acon->c.flags & REDIS_CONNECTED) {
+            activeNodes += 1;
+        }
+    }
+    /* Pick a random active node to return */
+    if (activeNodes > 0) {
+        int pick = (rand() % activeNodes) + 1; /* 1 to activeNodes */
+
+        int current = 0;
+        dictInitIterator(&di, nodes);
+        while ((de = dictNext(&di)) != NULL) {
+            node = dictGetEntryVal(de);
+            if (node->acon != NULL && node->acon->err == 0 &&
+                node->acon->c.flags & REDIS_CONNECTED) {
+                if (++current == pick) {
+                    return node;
+                }
+            }
+        }
+    }
+    return NULL;
+}
+
+/* Return a random node. */
+static redisClusterNode *getRandomNode(dict *nodes) {
+    dictIterator di;
+    dictInitIterator(&di, nodes);
+
+    if (dictSize(nodes) > 0) {
+        int pick = (rand() % dictSize(nodes)) + 1; /* 1 to size */
+        int current = 0;
+        dictEntry *de;
+        while ((de = dictNext(&di)) != NULL) {
+            if (++current == pick) {
+                return dictGetEntryVal(de);
+            }
+        }
+    }
+    return NULL;
+}
+
+/* Update the slot map by querying a cluster node.
+ * Primarily use a random node that is already connected
+ * or else use any known node. */
+static int updateSlotMapAsync(redisClusterAsyncContext *acc) {
+    if (acc->cc->nodes == NULL) {
+        __redisClusterAsyncSetError(acc, REDIS_ERR_OTHER, "no nodes added");
+        return REDIS_ERR;
+    }
+
+    /* Use a random selected active node if one exists, otherwise use any */
+    redisClusterNode *node = getRandomActiveNode(acc->cc->nodes);
+    if (node == NULL) {
+        node = getRandomNode(acc->cc->nodes);
+        if (node == NULL) {
+            __redisClusterAsyncSetError(acc, REDIS_ERR_OTHER,
+                                        "no nodes in cluster");
+            return REDIS_ERR;
+        }
+    }
+
+    /* Get hiredis context, connect if needed */
+    redisAsyncContext *ac = actx_get_by_node(acc, node);
+    if (ac == NULL)
+        return REDIS_ERR; /* Specific error already set */
+
+    /* Send a command depending of config */
+    int status;
+    if (acc->cc->flags & HIRCLUSTER_FLAG_ROUTE_USE_SLOTS) {
+        status = redisAsyncCommand(ac, clusterSlotsReplyCallback, acc,
+                                   REDIS_COMMAND_CLUSTER_SLOTS);
+    } else {
+        status = redisAsyncCommand(ac, clusterNodesReplyCallback, acc,
+                                   REDIS_COMMAND_CLUSTER_NODES);
+    }
+    return status;
+}
+
 static void redisClusterAsyncRetryCallback(redisAsyncContext *ac, void *r,
                                            void *privdata) {
     int ret;
@@ -3736,10 +3867,14 @@ static void redisClusterAsyncRetryCallback(redisAsyncContext *ac, void *r,
             goto done; /* Node already removed from topology */
 
         /* Start a slotmap update when the throttling allows */
-        if (hi_usec_now() > acc->update_route_time) {
-            cluster_update_route(cc);
-            acc->update_route_time =
-                hi_usec_now() + SLOTMAP_UPDATE_THROTTLE_USEC;
+        if (acc->update_route_time != SLOTMAP_UPDATE_ONGOING &&
+            hi_usec_now() > acc->update_route_time) {
+            if (updateSlotMapAsync(acc) == REDIS_OK) {
+                acc->update_route_time = SLOTMAP_UPDATE_ONGOING;
+            } else {
+                acc->update_route_time =
+                    hi_usec_now() + SLOTMAP_UPDATE_THROTTLE_USEC;
+            }
         }
         goto done;
     }
