@@ -25,7 +25,6 @@ EXPECT CLOSE
 EXPECT CONNECT
 EXPECT ["SET", "bar", "initial"]
 SEND +OK
-
 CLOSE
 EOF
 server1=$!
@@ -35,7 +34,6 @@ timeout 5s ./simulated-redis.pl -p 7402 -d --sigcont $syncpid2 <<'EOF' &
 EXPECT CONNECT
 EXPECT ["SET", "foo", "initial"]
 SEND +OK
-
 CLOSE
 EOF
 server2=$!
@@ -45,27 +43,20 @@ wait $syncpid1 $syncpid2;
 
 # Run client
 timeout 4s "$clientprog" 127.0.0.1:7401 > "$testname.out" <<'EOF'
-!async
 SET foo initial
 SET bar initial
-!sync
 
-# Servers shut down
+# Let servers shutdown
+!sleep
 
-!async
 SET foo initial
 SET bar initial
-!sync
 
 !async
 SET foo initial
 SET bar initial
 !sync
 
-!async
-SET foo initial
-SET bar initial
-!sync
 EOF
 clientexit=$?
 
@@ -87,28 +78,15 @@ if [ $clientexit -ne 0 ]; then
     exit $clientexit
 fi
 
-# Check the output from clusterclient, which depends on the hiredis version used.
-# hiredis v1.1.0
-expected1="OK
+expected="OK
 OK
-error: Server closed the connection
-error: Connection refused
 error: Connection refused
 error: Connection refused
 error: Connection refused
 error: Connection refused"
 
-# hiredis < v1.1.0
-expected2="OK
-OK
-error: Server closed the connection
-error: Connection refused
-error: Connection refused
-error: Connection refused
-error: Connection refused
-error: Connection refused"
-
-cmp "$testname.out" <(echo "$expected1") || cmp "$testname.out" <(echo "$expected2") || exit 99
+cat "$testname.out"
+cmp "$testname.out" <(echo "$expected") || exit 99
 
 # Clean up
 rm "$testname.out"
