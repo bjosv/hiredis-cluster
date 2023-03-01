@@ -42,6 +42,14 @@
 #define strncasecmp _strnicmp
 #endif
 
+#endif /* _MSC_VER */
+
+#ifdef _WIN32
+
+#include <profileapi.h> /* for QueryPerformance APIs */
+
+#define strerror_r(errno, buf, len) strerror_s(buf, len, errno)
+
 #ifndef srandom
 #define srandom srand
 #endif
@@ -50,13 +58,6 @@
 #define random rand
 #endif
 
-#endif /* _MSC_VER */
-
-#ifdef _WIN32
-
-#include <profileapi.h> /* for QueryPerformance APIs */
-
-#define strerror_r(errno, buf, len) strerror_s(buf, len, errno)
 #endif /* _WIN32 */
 
 #endif /* _WIN32_HELPER_INCLUDE */
