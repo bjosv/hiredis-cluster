@@ -1438,7 +1438,7 @@ redisClusterContext *redisClusterContextInit(void) {
         return NULL;
 
     /* Initialize generator for random node selections */
-    srand(time(NULL));
+    srandom(time(NULL));
 
     cc->max_retry_count = CLUSTER_DEFAULT_MAX_RETRY_COUNT;
     return cc;
@@ -3756,7 +3756,7 @@ static redisClusterNode *getRandomActiveNode(dict *nodes) {
     }
     /* Pick a random active node to return */
     if (activeNodes > 0) {
-        int pick = (rand() % activeNodes) + 1; /* 1 to activeNodes */
+        int pick = (random() % activeNodes) + 1; /* 1 to activeNodes */
 
         int current = 0;
         dictInitIterator(&di, nodes);
@@ -3767,24 +3767,6 @@ static redisClusterNode *getRandomActiveNode(dict *nodes) {
                 if (++current == pick) {
                     return node;
                 }
-            }
-        }
-    }
-    return NULL;
-}
-
-/* Return a random node. */
-static redisClusterNode *getRandomNode(dict *nodes) {
-    dictIterator di;
-    dictInitIterator(&di, nodes);
-
-    if (dictSize(nodes) > 0) {
-        int pick = (rand() % dictSize(nodes)) + 1; /* 1 to size */
-        int current = 0;
-        dictEntry *de;
-        while ((de = dictNext(&di)) != NULL) {
-            if (++current == pick) {
-                return dictGetEntryVal(de);
             }
         }
     }
@@ -3803,7 +3785,8 @@ static int updateSlotMapAsync(redisClusterAsyncContext *acc) {
     /* Use a random selected active node if one exists, otherwise use any */
     redisClusterNode *node = getRandomActiveNode(acc->cc->nodes);
     if (node == NULL) {
-        node = getRandomNode(acc->cc->nodes);
+        dictEntry *de = dictGetRandomKey(acc->cc->nodes);
+        node = dictGetEntryVal(de);
         if (node == NULL) {
             __redisClusterAsyncSetError(acc, REDIS_ERR_OTHER,
                                         "no nodes in cluster");
