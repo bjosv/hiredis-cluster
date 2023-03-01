@@ -39,6 +39,7 @@
 #include <stdlib.h>
 
 #include "dict.h"
+#include "win32.h"
 
 /* -------------------------- private prototypes ---------------------------- */
 

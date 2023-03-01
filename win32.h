@@ -42,6 +42,14 @@
 #define strncasecmp _strnicmp
 #endif
 
+#ifndef srandom
+#define srandom srand
+#endif
+
+#ifndef random
+#define random rand
+#endif
+
 #endif /* _MSC_VER */
 
 #ifdef _WIN32
