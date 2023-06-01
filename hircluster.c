@@ -3634,10 +3634,13 @@ redisClusterAsyncContext *redisClusterAsyncConnect(const char *addrs,
     redisClusterContext *cc;
     redisClusterAsyncContext *acc;
 
-    cc = redisClusterConnect(addrs, flags);
+    cc = redisClusterContextInit();
     if (cc == NULL) {
         return NULL;
     }
+
+    cc->flags = flags;
+    redisClusterSetOptionAddNodes(cc, addrs);
 
     acc = redisClusterAsyncInitialize(cc);
     if (acc == NULL) {
@@ -3645,6 +3648,11 @@ redisClusterAsyncContext *redisClusterAsyncConnect(const char *addrs,
         return NULL;
     }
 
+    if (updateSlotMapAsync(acc) == REDIS_OK) {
+        acc->lastSlotmapUpdateAttempt = SLOTMAP_UPDATE_ONGOING;
+    } else {
+        acc->lastSlotmapUpdateAttempt = hi_usec_now();
+    }
     return acc;
 }
 
