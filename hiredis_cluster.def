@@ -38,7 +38,8 @@
 	redisClusterFormattedCommand
 	redisClusterFree
 	redisClusterGetNodeByKey
-	redisClusterGetReply
+        redisClusterGetSlotByKey
+        redisClusterGetReply
 	redisClusterReset
 	redisClusterSetMaxRedirect
 	redisClusterSetOptionAddNode
