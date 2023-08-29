@@ -193,35 +193,35 @@ add_test(NAME dbsize-to-all-nodes-test-async
          COMMAND "${CMAKE_SOURCE_DIR}/tests/scripts/dbsize-to-all-nodes-test.sh"
                  "$<TARGET_FILE:clusterclient_async>"
                  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/tests/scripts/")
-add_test(NAME dbsize-to-all-nodes-during-scaledown-test
+add_test(NAME dbsize-to-all-nodes-during-scaledown-test-async
          COMMAND "${CMAKE_SOURCE_DIR}/tests/scripts/dbsize-to-all-nodes-during-scaledown-test.sh"
                  "$<TARGET_FILE:clusterclient_async>"
                  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/tests/scripts/")
-add_test(NAME reconnect-test
+add_test(NAME reconnect-test-async
          COMMAND "${CMAKE_SOURCE_DIR}/tests/scripts/reconnect-test.sh"
                 "$<TARGET_FILE:clusterclient_reconnect_async>"
                 WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/tests/scripts/")
-add_test(NAME timeout-handling-test
+add_test(NAME timeout-handling-test-async
          COMMAND "${CMAKE_SOURCE_DIR}/tests/scripts/timeout-handling-test.sh"
                  "$<TARGET_FILE:clusterclient_async>"
          WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/tests/scripts/")
-add_test(NAME connect-error-using-cluster-nodes-test
+add_test(NAME connect-error-using-cluster-nodes-test-async
          COMMAND "${CMAKE_SOURCE_DIR}/tests/scripts/connect-error-using-cluster-nodes-test.sh"
                  "$<TARGET_FILE:clusterclient_async>"
          WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/tests/scripts/")
-add_test(NAME command-from-callback-test
+add_test(NAME command-from-callback-test-async
          COMMAND "${CMAKE_SOURCE_DIR}/tests/scripts/command-from-callback-test.sh"
                  "$<TARGET_FILE:clusterclient_async>"
          WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/tests/scripts/")
-add_test(NAME ask-redirect-connection-error-test
+add_test(NAME ask-redirect-connection-error-test-async
          COMMAND "${CMAKE_SOURCE_DIR}/tests/scripts/ask-redirect-connection-error-test.sh"
                  "$<TARGET_FILE:clusterclient_async>"
          WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/tests/scripts/")
-add_test(NAME cluster-down-test
+add_test(NAME cluster-down-test-async
          COMMAND "${CMAKE_SOURCE_DIR}/tests/scripts/cluster-down-test.sh"
                  "$<TARGET_FILE:clusterclient_async>"
          WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/tests/scripts/")
-add_test(NAME connection-error-test
+add_test(NAME connection-error-test-async
          COMMAND "${CMAKE_SOURCE_DIR}/tests/scripts/connection-error-test.sh"
                  "$<TARGET_FILE:clusterclient_async>"
          WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/tests/scripts/")
@@ -233,13 +233,13 @@ add_test(NAME redirect-with-ipv6-test
          COMMAND "${CMAKE_SOURCE_DIR}/tests/scripts/redirect-with-ipv6-test.sh"
                  "$<TARGET_FILE:clusterclient>"
          WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/tests/scripts/")
-add_test(NAME redirect-with-ipv6-async-test
+add_test(NAME redirect-with-ipv6-test-async
          COMMAND "${CMAKE_SOURCE_DIR}/tests/scripts/redirect-with-ipv6-test.sh"
                  "$<TARGET_FILE:clusterclient_async>"
          WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/tests/scripts/")
 if(NOT ENABLE_IPV6_TESTS)
   set_tests_properties(redirect-with-ipv6-test PROPERTIES DISABLED True)
-  set_tests_properties(redirect-with-ipv6-async-test PROPERTIES DISABLED True)
+  set_tests_properties(redirect-with-ipv6-test-async PROPERTIES DISABLED True)
 endif()
 # This test can't be run on hiredis v1.1.0 due to hiredis issue #1171.
 # Disabling the testcase if hiredis contains the issue or if the version is unknown.
