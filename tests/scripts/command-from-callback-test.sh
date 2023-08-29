@@ -28,10 +28,8 @@ timeout 5s ./simulated-redis.pl -p 7401 -d --sigcont $syncpid1 <<'EOF' &
 EXPECT CONNECT
 EXPECT ["CLUSTER", "SLOTS"]
 SEND [[0, 6000, ["127.0.0.1", 7401, "nodeid1"]],[6001, 12000, ["127.0.0.1", 7402, "nodeid2"]],[12001, 16383, ["127.0.0.1", 7403, "nodeid3"]]]
-EXPECT CLOSE
 
 # After slot map update, this node is now handling node2's old slots.
-EXPECT CONNECT
 EXPECT ["GET", "fee"]
 SEND "bee"
 EXPECT CLOSE
@@ -71,6 +69,9 @@ wait $syncpid1 $syncpid2 $syncpid3;
 
 # Run client which resends failed commands in the reply callback
 timeout 4s "$clientprog" 127.0.0.1:7401 > "$testname.out" <<'EOF'
+# Avoid slotmap update throttling
+!sleep
+
 !resend
 !async
 GET foo

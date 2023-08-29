@@ -17,9 +17,6 @@ timeout 5s ./simulated-redis.pl -p 7401 -d --sigcont $syncpid1 <<'EOF' &
 EXPECT CONNECT
 EXPECT ["CLUSTER", "SLOTS"]
 SEND [[0, 6000, ["127.0.0.1", 7401, "nodeid1"]],[6001, 16383, ["192.168.254.254", 9999, "nodeid2"]]]
-EXPECT CLOSE
-
-EXPECT CONNECT
 EXPECT ["SET", "bar", "initial"]
 SEND +OK
 
@@ -46,6 +43,9 @@ wait $syncpid1
 # Run client
 timeout 4s "$clientprog" 127.0.0.1:7401 > "$testname.out" <<'EOF'
 SET bar initial
+
+# Avoid slotmap update throttling
+!sleep
 
 # Send commands aimed for nodeid2
 !async

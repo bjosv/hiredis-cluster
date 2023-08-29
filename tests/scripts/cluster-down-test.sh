@@ -20,9 +20,6 @@ timeout 5s ./simulated-redis.pl -p 7401 -d --sigcont $syncpid1 <<'EOF' &
 EXPECT CONNECT
 EXPECT ["CLUSTER", "SLOTS"]
 SEND [[0, 6000, ["127.0.0.1", 7401, "nodeid1"]],[6001, 16383, ["127.0.0.1", 7402, "nodeid2"]]]
-EXPECT CLOSE
-
-EXPECT CONNECT
 EXPECT ["SET", "bar", "initial"]
 SEND +OK
 CLOSE
