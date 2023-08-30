@@ -14,20 +14,18 @@ timeout 5s ./simulated-redis.pl -p 7400 -d --sigcont $syncpid <<'EOF' &
 EXPECT CONNECT
 EXPECT ["CLUSTER", "SLOTS"]
 SEND -ERR This instance has cluster support disabled
-EXPECT CLOSE
 EXPECT CONNECT
 EXPECT ["SET", "foo", "bar"]
 SEND +OK
 EXPECT ["GET", "foo"]
 SEND "bar"
 CLOSE
-EXPECT CONNECT
 EXPECT ["CLUSTER", "SLOTS"]
 SEND -ERR This instance has cluster support disabled
-EXPECT CLOSE
 EXPECT CONNECT
 EXPECT ["GET", "foo"]
 SEND "bar"
+EXPECT CLOSE
 EXPECT CLOSE
 EOF
 server=$!

@@ -40,7 +40,6 @@ void test_password_ok(void) {
     ASSERT_MSG(status == REDIS_OK, cc->errstr);
     assert(connect_success_counter == 1); // for CLUSTER NODES
     load_redis_version(cc);
-    assert(connect_success_counter == 2); // for checking redis version
 
     // Test connection
     redisReply *reply;
@@ -50,7 +49,7 @@ void test_password_ok(void) {
     redisClusterFree(cc);
 
     // Check counters incremented by connect callback
-    assert(connect_success_counter == 3); // for SET (to a different node)
+    assert(connect_success_counter == 2); // for SET (to a different node)
     assert(connect_failure_counter == 0);
     reset_counters();
 }

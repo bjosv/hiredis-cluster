@@ -43,6 +43,7 @@ wait $syncpid1 $syncpid2;
 timeout 3s "$clientprog" --use-cluster-nodes 127.0.0.1:7400 > "$testname.out" <<'EOF'
 # Avoid slotmap update throttling
 !sleep
+!sleep
 
 GET foo
 EOF

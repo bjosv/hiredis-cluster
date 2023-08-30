@@ -169,13 +169,13 @@ void test_alloc_failure_handling(void) {
 
     // Connect
     {
-        for (int i = 0; i < 128; ++i) {
+        for (int i = 0; i < 110; ++i) {
             prepare_allocation_test(cc, i);
             result = redisClusterConnect2(cc);
             assert(result == REDIS_ERR);
         }
 
-        prepare_allocation_test(cc, 128);
+        prepare_allocation_test(cc, 110);
         result = redisClusterConnect2(cc);
         assert(result == REDIS_OK);
     }
@@ -189,7 +189,11 @@ void test_alloc_failure_handling(void) {
             prepare_allocation_test(cc, i);
             reply = (redisReply *)redisClusterCommand(cc, cmd);
             assert(reply == NULL);
+            /* if (i < 17 || i > 17) { */
             ASSERT_STR_EQ(cc->errstr, "Out of memory");
+            /* } else { */
+            /*     ASSERT_STR_EQ(cc->errstr, "Command (cluster nodes) send error."); */
+            /* } */
         }
 
         prepare_allocation_test(cc, 36);
@@ -203,15 +207,19 @@ void test_alloc_failure_handling(void) {
         redisReply *reply;
         const char *cmd = "MSET key1 v1 key2 v2 key3 v3";
 
-        for (int i = 0; i < 77; ++i) {
+        for (int i = 0; i < 90; ++i) {
             prepare_allocation_test(cc, i);
             reply = (redisReply *)redisClusterCommand(cc, cmd);
             assert(reply == NULL);
+            /* if (i < 49 || (i > 49 && i < 72) || i > 88) { */
             ASSERT_STR_EQ(cc->errstr, "Out of memory");
+            /* } else { */
+            /*     ASSERT_STR_EQ(cc->errstr, "Command (cluster nodes) send error."); */
+            /* } */
         }
 
         // Multi-key commands
-        prepare_allocation_test(cc, 77);
+        prepare_allocation_test(cc, 90);
         reply = (redisReply *)redisClusterCommand(cc, cmd);
         CHECK_REPLY_OK(cc, reply);
         freeReplyObject(reply);
@@ -574,13 +582,13 @@ void test_alloc_failure_handling_async(void) {
 
     // Connect
     {
-        for (int i = 0; i < 126; ++i) {
+        for (int i = 0; i < 110; ++i) {
             prepare_allocation_test(acc->cc, i);
             result = redisClusterConnect2(acc->cc);
             assert(result == REDIS_ERR);
         }
 
-        prepare_allocation_test(acc->cc, 126);
+        prepare_allocation_test(acc->cc, 110);
         result = redisClusterConnect2(acc->cc);
         assert(result == REDIS_OK);
     }

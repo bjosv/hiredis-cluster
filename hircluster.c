@@ -1194,10 +1194,7 @@ static int clusterUpdateRouteSendCommand(redisClusterContext *cc,
                            REDIS_COMMAND_CLUSTER_SLOTS :
                            REDIS_COMMAND_CLUSTER_NODES);
     if (redisAppendCommand(c, cmd) != REDIS_OK) {
-        const char *msg = (cc->flags & HIRCLUSTER_FLAG_ROUTE_USE_SLOTS ?
-                               "Command (cluster slots) send error." :
-                               "Command (cluster nodes) send error.");
-        __redisClusterSetError(cc, c->err, msg);
+        __redisClusterSetError(cc, c->err, c->errstr);
         return REDIS_ERR;
     }
     /* Flush buffer to socket. */
