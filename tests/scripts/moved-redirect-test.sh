@@ -16,8 +16,6 @@ timeout 5s ./simulated-redis.pl -p 7403 -d --sigcont $syncpid1 <<'EOF' &
 EXPECT CONNECT
 EXPECT ["CLUSTER", "SLOTS"]
 SEND [[0, 16383, ["127.0.0.1", 7403, "nodeid7403"]]]
-EXPECT CLOSE
-EXPECT CONNECT
 EXPECT ["GET", "foo"]
 SEND -MOVED 12182 127.0.0.1:7404
 EXPECT ["CLUSTER", "SLOTS"]
@@ -39,7 +37,11 @@ server2=$!
 wait $syncpid1 $syncpid2;
 
 # Run client
-echo 'GET foo' | timeout 3s "$clientprog" --events 127.0.0.1:7403 > "$testname.out"
+timeout 3s "$clientprog" --events 127.0.0.1:7403 > "$testname.out" <<'EOF'
+# Avoid slotmap update throttling
+!sleep
+GET foo
+EOF
 clientexit=$?
 
 # Wait for servers to exit
