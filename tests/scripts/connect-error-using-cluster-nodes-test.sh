@@ -31,7 +31,7 @@ server=$!
 wait $syncpid;
 
 # Run client and use CLUSTER NODES to get topology
-timeout 3s "$clientprog" --use-cluster-nodes 127.0.0.1:7400 > "$testname.out"
+timeout 3s "$clientprog" --use-cluster-nodes 127.0.0.1:7400 > "$testname.out" 2>&1
 clientexit=$?
 
 # Wait for server to exit
@@ -50,7 +50,7 @@ if [ $clientexit -ne 2 ]; then
 fi
 
 # Check the output from clusterclient
-printf 'Connect error: No slot information\n' | cmp "$testname.out" - || exit 99
+printf 'Connect error: No slot information\n' | diff -u - "$testname.out" || exit 99
 
 # Clean up
 rm "$testname.out"
