@@ -1282,67 +1282,6 @@ static int clusterUpdateRouteHandleReply(redisClusterContext *cc,
     }
 }
 
-/**
- * Update route with the "cluster nodes" or "cluster slots" command reply.
- */
-static int cluster_update_route_by_addr(redisClusterContext *cc, const char *ip,
-                                        int port) {
-    redisContext *c = NULL;
-
-    if (cc == NULL) {
-        return REDIS_ERR;
-    }
-
-    if (ip == NULL || port <= 0) {
-        __redisClusterSetError(cc, REDIS_ERR_OTHER, "Ip or port error!");
-        goto error;
-    }
-
-    redisOptions options = {0};
-    REDIS_OPTIONS_SET_TCP(&options, ip, port);
-    options.connect_timeout = cc->connect_timeout;
-    options.command_timeout = cc->command_timeout;
-
-    c = redisConnectWithOptions(&options);
-    if (c == NULL) {
-        __redisClusterSetError(cc, REDIS_ERR_OOM, "Out of memory");
-        return REDIS_ERR;
-    }
-
-    if (cc->on_connect) {
-        cc->on_connect(c, c->err ? REDIS_ERR : REDIS_OK);
-    }
-
-    if (c->err) {
-        __redisClusterSetError(cc, c->err, c->errstr);
-        goto error;
-    }
-
-    if (cc->ssl && cc->ssl_init_fn(c, cc->ssl) != REDIS_OK) {
-        __redisClusterSetError(cc, c->err, c->errstr);
-        goto error;
-    }
-
-    if (authenticate(cc, c) != REDIS_OK) {
-        goto error;
-    }
-
-    if (clusterUpdateRouteSendCommand(cc, c) != REDIS_OK) {
-        goto error;
-    }
-
-    if (clusterUpdateRouteHandleReply(cc, c) != REDIS_OK) {
-        goto error;
-    }
-
-    redisFree(c);
-    return REDIS_OK;
-
-error:
-    redisFree(c);
-    return REDIS_ERR;
-}
-
 /* Update known cluster nodes with a new collection of redisClusterNodes.
  * Will also update the slot-to-node lookup table for the new nodes. */
 static int updateNodesAndSlotmap(redisClusterContext *cc, dict *nodes) {
@@ -1436,7 +1375,6 @@ error:
 }
 
 int redisClusterUpdateSlotmap(redisClusterContext *cc) {
-    int ret;
     int flag_err_not_set = 1;
     redisClusterNode *node;
     dictEntry *de;
@@ -1458,17 +1396,24 @@ int redisClusterUpdateSlotmap(redisClusterContext *cc) {
         if (node == NULL || node->host == NULL) {
             continue;
         }
+        flag_err_not_set = 0;
 
-        ret = cluster_update_route_by_addr(cc, node->host, node->port);
-        if (ret == REDIS_OK) {
-            if (cc->err) {
-                cc->err = 0;
-                memset(cc->errstr, '\0', strlen(cc->errstr));
-            }
-            return REDIS_OK;
+        redisContext *c = ctx_get_by_node(cc, node);
+        if (c == NULL || c->err) {
+            continue;
+        }
+        if (clusterUpdateRouteSendCommand(cc, c) != REDIS_OK) {
+            continue;
+        }
+        if (clusterUpdateRouteHandleReply(cc, c) != REDIS_OK) {
+            continue;
         }
 
-        flag_err_not_set = 0;
+        if (cc->err) {
+            cc->err = 0;
+            memset(cc->errstr, '\0', strlen(cc->errstr));
+        }
+        return REDIS_OK;
     }
 
     if (flag_err_not_set) {
