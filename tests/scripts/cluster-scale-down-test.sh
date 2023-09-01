@@ -86,14 +86,17 @@ wait $server2; server2exit=$?
 # Check exit statuses
 if [ $server1exit -ne 0 ]; then
     echo "Simulated server #1 exited with status $server1exit"
+    echo "Client log:" && cat "$testname.out"
     exit $server1exit
 fi
 if [ $server2exit -ne 0 ]; then
     echo "Simulated server #2 exited with status $server2exit"
+    echo "Client log:" && cat "$testname.out"
     exit $server2exit
 fi
 if [ $clientexit -ne 0 ]; then
     echo "$clientprog exited with status $clientexit"
+    echo "Client log:" && cat "$testname.out"
     exit $clientexit
 fi
 
