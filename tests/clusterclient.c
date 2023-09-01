@@ -126,7 +126,10 @@ int main(int argc, char **argv) {
         } else {
             redisReply *reply = redisClusterCommand(cc, command);
             if (!reply || cc->err) {
-                printf("error: %s\n", cc->errstr);
+                if (cc->errstr[0] == 0)
+                    printf("error: [%d]\n", cc->err);
+                else
+                    printf("error: %s\n", cc->errstr);
             } else {
                 printReply(reply);
             }
