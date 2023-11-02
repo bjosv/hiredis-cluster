@@ -38,6 +38,10 @@ jobs:
             cmake-version: 3.18
             cmake-build-type: Release
             sanitizer: ""
+          - compiler: clang-17
+            cmake-version: 3.27
+            cmake-build-type: Release
+            sanitizer: ""
 
     steps:
     - name: Prepare
