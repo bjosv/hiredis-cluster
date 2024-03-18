@@ -9,7 +9,7 @@ script_dir=$(realpath "${0%/*}")
 repo_dir=$(git rev-parse --show-toplevel)
 
 # Download hiredis
-hiredis_version=1.0.2
+hiredis_version=1.1.0
 curl -L https://github.com/redis/hiredis/archive/v${hiredis_version}.tar.gz | tar -xz -C ${script_dir}
 
 # Build and install downloaded hiredis using CMake
@@ -27,7 +27,7 @@ cd ${script_dir}/hiredis_cluster_build
 cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DDISABLE_TESTS=ON -DENABLE_SSL=ON -DDOWNLOAD_HIREDIS=OFF \
       -DCMAKE_PREFIX_PATH=${script_dir}/install/usr/local \
       ${repo_dir}
-make DESTDIR=${script_dir}/install clean install
+VERBOSE=1 make DESTDIR=${script_dir}/install clean install
 
 
 # Build examples using headers and libraries installed in previous steps.
@@ -37,4 +37,4 @@ cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo \
       -DENABLE_SSL=ON \
       -DCMAKE_PREFIX_PATH=${script_dir}/install/usr/local \
       ${script_dir}/../src
-make
+VERBOSE=1 make
